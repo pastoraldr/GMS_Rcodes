@@ -1,0 +1,282 @@
+f1 <- function(x,a,r){
+  v = x^r/(a^r + x^r);
+  return (v)
+}
+
+f2 <- function(x,a){
+  v = x/(a + x);
+  return (v)
+}
+
+f3 <- function(x){
+  v = x;
+  return (v)
+}
+
+f4 <- function(x,a){
+  v = x^2/(a^2 + x^2);
+  return (v)
+}
+
+
+f5 <- function(x,a,r){
+  v = a^r/(a^r + x^r);
+  return (v)
+}
+
+#############################
+#############################
+#############################
+#############################
+#############################
+
+
+
+#############################
+#############################
+#############################
+#############################
+#############################
+
+DeterminMealFunctionParameters <- function(t){
+  THREE_HOURS = 180;
+  SEVEN_HOURS = 60*7;
+  TEN_HOURS = 60*10;
+  TWELVE_HOURS = 60*12;
+  FIFTHEEN_HOURS = 60*15;
+  EIGHTEEN_HOURS = 60*18;
+  TWEENTYTWO_HOURS = 60*22;
+  ONE_DAY = 60*24;
+  
+  a = 0;
+  C = 0;
+  PeakTime = 10;
+  DigestTime = THREE_HOURS;
+  y = DigestTime + 1;
+  
+  s = t;
+  while (t>ONE_DAY){
+    s = pracma::mod(t, ONE_DAY);
+    t = t - ONE_DAY;
+  }
+  
+  if (s >= SEVEN_HOURS & s < (SEVEN_HOURS + DigestTime)){
+    a = 0.075;
+    C = 1;
+    PeakTime = 20;
+    y = s - SEVEN_HOURS;
+  } else if (s >= TEN_HOURS & s < (TEN_HOURS  + DigestTime)) {
+    a = 0.025;
+    C = 1;
+    PeakTime = 10;
+    y = s - TEN_HOURS;
+  } else if (s >= TWELVE_HOURS & s < (TWELVE_HOURS  + DigestTime)) {
+    a = 0.1;
+    C = 1;
+    PeakTime = 30;
+    y = s - TWELVE_HOURS;
+  } else if (s >= FIFTHEEN_HOURS & s < (FIFTHEEN_HOURS  + DigestTime)) {
+    a = 0.025;
+    C = 1;
+    PeakTime = 10;
+    y = s - FIFTHEEN_HOURS;
+  } else if (s >= EIGHTEEN_HOURS & s < (EIGHTEEN_HOURS  + DigestTime)) {
+    a = 0.11;
+    C = 1;
+    PeakTime = 35;
+    y = s - EIGHTEEN_HOURS;
+  } else if (s >= TWEENTYTWO_HOURS & s < (TWEENTYTWO_HOURS  + DigestTime)) { 
+    a = 0.01;
+    C = 1;
+    PeakTime = 15;
+    y = s - TWEENTYTWO_HOURS;
+  }
+  return(c(y, a, C, PeakTime, DigestTime))
+}
+
+#############################
+#############################
+#############################
+#############################
+#############################
+
+
+InjectionFunction <- function(t, a){
+  if (pracma::mod(t, a) < a/2){
+    Iin = 0.5;
+  }  else {
+    Iin = 0.1;
+  }
+  return(Iin)
+}
+
+#############################
+#############################
+#############################
+#############################
+#############################
+
+MealFunction <- function(t){
+  para <- DeterminMealFunctionParameters(t);
+  y = para[1];
+  a = para[2];
+  C = para[3];
+  PeakTime = para[4];
+  DigestTime = para[5];
+  
+  if (y > DigestTime | (y < 0)){
+    Gin = 0;
+  }  else{
+    Gin = max(0, a*C*y*exp(-y/PeakTime));
+  }
+  return (Gin)
+}
+
+#############################
+#############################
+#############################
+#############################
+#############################
+initData <- function(delay){
+  k = delay;
+  delay = 36;
+  idx=c(1:(delay+1));
+  t = c(1:(delay+1))-(delay+1)
+  G = 100+6*sqrt(idx-1)
+  I = 20+(idx-1)/2
+  n=length(idx);
+  return(list(history=c(c(c((-k):(-delay-1)),t), c(rep(1e+7, k-delay), G), c(rep(1e+7, k-delay), I)),
+              u=c(G[n], I[n])))
+}
+
+#############################
+#############################
+#############################
+#############################
+#############################
+SoltoInit <- function(sol,delay=60,time){
+  t <- c((time-delay):time);
+  G<- rep(0,delay+1);
+  I <- rep(0,delay+1);
+  for(k in 1:(delay+1)){
+    idx<-which.min(abs(t[k]-sol$t))
+    G[k] =   sol$u[idx,1];
+    I[k] =   sol$u[idx,2];
+  }
+  return(list(history=c(t, G, I), u=c(G[delay+1], I[delay+1])))
+}
+
+#############################
+#############################
+#############################
+#############################
+#############################
+
+h <- function(p,t){
+  idx = which(p==2e+6)+1
+  time = p[idx:(idx+61-1)];
+  Ghis = p[(idx+61):(idx+2*61-1)];
+  Ihis = p[(idx+2*61):(idx+3*61-1)]
+  v1 = interp1(time, Ghis, t, "linear");   
+  v2 = interp1(time, Ihis, t, "linear");   
+  y = c(v1,v2);
+  return (y)
+}
+
+f <- function(u, h, p, t){
+  
+  G = u[1];
+  I = u[2];
+  
+  tau1 = p[1];
+  tau2 = p[2];
+  tau3 = p[3];
+  
+  ## parameters for insulin secretion triggered by glucose
+  VP.di = p[4];
+  
+  ## parameters for f1
+  VP.sig1 = p[5];
+  VP.a1 = p[6];
+  VP.r1 = p[7]; 
+  
+  ## parameters for f2
+  VP.sig2 = p[8];
+  VP.a2 = p[9];
+  
+  ## parameters for f3 and f4
+  VP.sig4 = p[10];
+  VP.U0 = p[11];     
+  VP.a4 = p[12];     
+  
+  ## parameters for f5
+  VP.sig5 = p[13]; 
+  VP.a5 = p[14];   
+  VP.r5 = p[15];      
+  
+  ##########
+  G_tau1 <- h(p, t-tau1);
+  I_tau2 <- h(p, t-tau2);
+  I_tau3 <- h(p, t-tau3);
+  
+  SwitchTimeOfInjection = 60;
+  
+  #du1 = MealFunction(t) - VP.sig2*G - VP.sig4*G*(VP.U0+I_tau3[2]) + VP.sig5*(100-I_tau2[2])#+rnorm(1);
+  #du2 = InjectionFunction(t, SwitchTimeOfInjection) + 0.03*VP.sig1*f1(G_tau1[1],VP.a1,VP.r1) - VP.di*I#+rnorm(1);
+  
+  du1 = MealFunction(t) - VP.sig2*f2(G,VP.a2) - VP.sig4*f3(G)*(VP.U0+f4(I_tau3[2],VP.a4)) + 
+        VP.sig5*f5(I_tau2[2],VP.a5,VP.r5);
+  du2 = InjectionFunction(t, SwitchTimeOfInjection) + 0.03*VP.sig1*f1(G_tau1[1],VP.a1,VP.r1) - VP.di*I;
+  
+  return(c(du1,du2))
+}
+
+
+fgen <- function(u, h, p, t){
+  
+  G = u[1];
+  I = u[2];
+  
+  tau1 = p[1];
+  tau2 = p[2];
+  tau3 = p[3];
+  
+  ## parameters for insulin secretion triggered by glucose
+  VP.di = p[4];
+  
+  ## parameters for f1
+  VP.sig1 = p[5];
+  VP.a1 = p[6];
+  VP.r1 = p[7]; 
+  
+  ## parameters for f2
+  VP.sig2 = p[8];
+  VP.a2 = p[9];
+  
+  ## parameters for f3 and f4
+  VP.sig4 = p[10];
+  VP.U0 = p[11];     
+  VP.a4 = p[12];     
+  
+  ## parameters for f5
+  VP.sig5 = p[13]; 
+  VP.a5 = p[14];   
+  VP.r5 = p[15];     
+  
+  ##########
+  G_tau1 <- h(p, t-tau1);
+  I_tau2 <- h(p, t-tau2);
+  I_tau3 <- h(p, t-tau3);
+  
+  SwitchTimeOfInjection = 60;
+  
+  #du1 = MealFunction(t) - VP.sig2*G - VP.sig4*G*(VP.U0+I_tau3[2]) + VP.sig5*(100-I_tau2[2])+rnorm(1,0,0.03);
+  #du2 = InjectionFunction(t, SwitchTimeOfInjection) + 0.03*VP.sig1*f1(G_tau1[1],VP.a1,VP.r1) - VP.di*I +
+  #     rnorm(1,0, 0.03);
+  du1 = MealFunction(t) - VP.sig2*f2(G,VP.a2) - VP.sig4*f3(G)*(VP.U0+f4(I_tau3[2],VP.a4)) + 
+        VP.sig5*f5(I_tau2[2],VP.a5,VP.r5) +rnorm(1,0,0.5);
+  du2 = InjectionFunction(t, SwitchTimeOfInjection) + 0.03*VP.sig1*f1(G_tau1[1],VP.a1,VP.r1) - VP.di*I +
+        rnorm(1,0,0.5);
+  
+  return(c(du1,du2))
+}
